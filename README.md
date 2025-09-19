@@ -2,7 +2,7 @@
 
 > AI-powered sentiment & topic analysis for Flipkart product reviews. Built with Python, NLP, and Gemini AI.
 
-[![Landing Page](screenshot_1_landing)](screenshot_1_landing)
+[![Landing Page](screenshot_1_landing.png)](screenshot_1_landing.png)
 
 ##  Objective
 
@@ -24,7 +24,7 @@ Automatically extract and summarize customer sentiments, themes, and actionable 
 ##  Report Screenshots
 
 ### 1. App Landing Page
-![Landing Page](screenshot_1_landing)
+![Landing Page](screenshot_1_landing.png)
 
 ### 2. Sample Raw Reviews
 ![Sample Reviews](screenshot_2_reviews.png)
@@ -67,3 +67,4 @@ This tool empowers Flipkart and product vendors to understand the **voice of the
 
 
 Jai Ram Margam | Data Scientist & AI Developer
+
