@@ -26,7 +26,10 @@ nlp = spacy.load("en_core_web_sm")
 def get_user_api_key():
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
-        return None
+        print("Gemini API Key not found in environment. Please enter it:")
+        api_key = input().strip()
+    if not api_key:
+        raise ValueError("API Key is required.")
     return api_key
 
 # Load sentiment model once
