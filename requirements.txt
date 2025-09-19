@@ -5,12 +5,14 @@ pandas==2.3.2
 numpy==1.26.4
 emoji==2.14.1
 wordcloud==1.9.4
+spacy==3.7.5
 https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz
 nltk==3.9.1
 scikit-learn==1.6.1
 transformers==4.46.0
 torch==2.5.1
-gensim==4.3.3 --no-binary gensim  
+tf-keras==2.15.0
+gensim==4.3.3
 scipy>=1.10.1,<1.14.0
 google-generativeai==0.8.2
 matplotlib==3.9.2
