@@ -9,7 +9,7 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 from sklearn.feature_extraction.text import CountVectorizer
-from transformers import pipeline
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from gensim import corpora
 from gensim.models import LdaModel
 import google.generativeai as genai
@@ -29,12 +29,8 @@ nltk.download('vader_lexicon', quiet=True)
 def load_spacy_model():
     return spacy.load("en_core_web_sm")
 
-@st.cache_resource
-def load_sentiment_model():
-    return pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
-
 nlp = load_spacy_model()
-sentiment_pipeline = load_sentiment_model()
+sia = SentimentIntensityAnalyzer()
 
 def get_user_api_key(provided_key=None):
     if provided_key:
@@ -46,6 +42,7 @@ def get_user_api_key(provided_key=None):
         raise ValueError("API Key is required. Please provide it via the UI or environment.")
     return api_key
 
+@st.cache_data(show_spinner="Scraping reviews...")
 def scrape_flipkart_reviews(base_url, num_pages=2):
     options = Options()
     options.add_argument('--headless=new')
@@ -138,8 +135,15 @@ def correct_grammar(text, api_key):
         return text
 
 def get_sentiment(text):
-    result = sentiment_pipeline(str(text), truncation=True, max_length=512)[0]
-    return result['label'], result['score']
+    scores = sia.polarity_scores(str(text))
+    compound = scores['compound']
+    if compound >= 0.05:
+        label = "POSITIVE"
+    elif compound <= -0.05:
+        label = "NEGATIVE"
+    else:
+        label = "NEUTRAL"
+    return label, abs(compound)
 
 def run_lda(text_series, n_topics=5, label=""):
     tokenized = text_series.apply(lambda x: x.split())
@@ -194,6 +198,7 @@ def generate_wordcloud(text_series):
     ax.axis("off")
     return fig
 
+@st.cache_data(show_spinner="Analyzing data...")
 def run_full_analysis(url=None, num_pages=3, use_grammar=False, api_key=None):
     api_key = get_user_api_key(api_key)
 
