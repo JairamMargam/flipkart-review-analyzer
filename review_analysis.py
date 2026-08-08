@@ -19,23 +19,32 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import nltk
 import os
+import streamlit as st
 
 # Setup
 nltk.download('punkt', quiet=True)
 nltk.download('vader_lexicon', quiet=True)
-nlp = spacy.load("en_core_web_sm")
 
-def get_user_api_key():
+@st.cache_resource
+def load_spacy_model():
+    return spacy.load("en_core_web_sm")
+
+@st.cache_resource
+def load_sentiment_model():
+    return pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
+
+nlp = load_spacy_model()
+sentiment_pipeline = load_sentiment_model()
+
+def get_user_api_key(provided_key=None):
+    if provided_key:
+        return provided_key
+    if "GOOGLE_API_KEY" in st.secrets:
+        return st.secrets["GOOGLE_API_KEY"]
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
-        print("Gemini API Key not found in environment. Please enter it:")
-        api_key = input().strip()
-    if not api_key:
-        raise ValueError("API Key is required.")
+        raise ValueError("API Key is required. Please provide it via the UI or environment.")
     return api_key
-
-# Load sentiment model once
-sentiment_pipeline = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
 
 def scrape_flipkart_reviews(base_url, num_pages=2):
     options = Options()
@@ -186,8 +195,7 @@ def generate_wordcloud(text_series):
     return fig
 
 def run_full_analysis(url=None, num_pages=3, use_grammar=False, api_key=None):
-    if not api_key:
-        api_key = get_user_api_key()
+    api_key = get_user_api_key(api_key)
 
     df = scrape_flipkart_reviews(url, num_pages=num_pages)
     df['description'] = df['description'].astype(str).str.strip()
