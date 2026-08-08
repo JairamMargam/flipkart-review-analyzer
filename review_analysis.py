@@ -15,6 +15,8 @@ from gensim.models import LdaModel
 import google.generativeai as genai
 from google.generativeai import GenerativeModel
 import spacy
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 import nltk
 import os
 
@@ -117,7 +119,7 @@ def clean_text(text):
 
 def correct_grammar(text, api_key):
     genai.configure(api_key=api_key)
-    model = GenerativeModel("gemini-2.5-flash")
+    model = GenerativeModel("gemini-1.5-flash")
     prompt = f"Correct the grammar in this sentence and return only the corrected sentence:\n\"{text}\""
     try:
         response = model.generate_content(prompt)
@@ -127,7 +129,7 @@ def correct_grammar(text, api_key):
         return text
 
 def get_sentiment(text):
-    result = sentiment_pipeline(str(text))[0]
+    result = sentiment_pipeline(str(text), truncation=True, max_length=512)[0]
     return result['label'], result['score']
 
 def run_lda(text_series, n_topics=5, label=""):
@@ -150,7 +152,7 @@ def get_top_ngrams(corpus, ngram_range=(2, 3), n=20):
 
 def explain_insights(bigrams, lda_topics, api_key):
     genai.configure(api_key=api_key)
-    model = GenerativeModel("gemini-2.5-flash")
+    model = GenerativeModel("gemini-1.5-flash")
     prompt = f"""
 I extracted review insights using these two:
 Top Bigrams/Trigrams:
@@ -172,6 +174,16 @@ Keep it simple, brief, and to the point — suitable for busy users or product m
     except Exception as e:
         print(f"Insight generation failed: {e}")
         return "Could not generate insights. Check API key or try again."
+
+def generate_wordcloud(text_series):
+    text = " ".join(text_series.dropna().astype(str))
+    if not text.strip():
+        return None
+    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.imshow(wordcloud, interpolation='bilinear')
+    ax.axis("off")
+    return fig
 
 def run_full_analysis(url=None, num_pages=3, use_grammar=False, api_key=None):
     if not api_key:
@@ -197,11 +209,13 @@ def run_full_analysis(url=None, num_pages=3, use_grammar=False, api_key=None):
     bigram_str = '\n'.join([f"{phrase} ({count})" for phrase, count in bigrams])
     summary = explain_insights(bigram_str, lda_summary, api_key)
     sentiment_counts = df['sentiment'].value_counts()
+    wordcloud_fig = generate_wordcloud(df['description_cleaned'])
 
     return {
         'summary': summary,
         'sentiment_counts': sentiment_counts,
         'raw': df,
         'lda_topics': lda_summary,
-        'bigrams_text': bigram_str
+        'bigrams_text': bigram_str,
+        'wordcloud_fig': wordcloud_fig
     }

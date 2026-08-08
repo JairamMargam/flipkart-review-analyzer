@@ -42,6 +42,9 @@ Automatically extract and summarize customer sentiments, themes, and actionable 
 ### 6. Gemini AI Business Summary
 ![Gemini Insights](screenshot_7_gemini.png)
 
+### 7. Word Clouds
+A visual representation of the most frequent words in the reviews.
+
 ##  Key Business Takeaways
 
 - Gain instant visibility into product issues or praise without manual review reading.
@@ -53,7 +56,6 @@ Automatically extract and summarize customer sentiments, themes, and actionable 
 - Add sentiment-over-time tracking
 - Compare multiple products/brands
 - Automate email report delivery
-- Add word clouds for better visual understanding
 
 ##  Conclusion
 
@@ -67,4 +69,3 @@ This tool empowers Flipkart and product vendors to understand the **voice of the
 
 
 Jai Ram Margam | Data Scientist & AI Developer
-
