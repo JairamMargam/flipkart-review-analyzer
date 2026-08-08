@@ -63,6 +63,11 @@ if st.button("🚀 Analyze Reviews"):
                 st.subheader("📊 Sentiment Distribution")
                 st.bar_chart(result['sentiment_counts'])
 
+                # Word Cloud
+                if result.get('wordcloud_fig'):
+                    st.subheader("☁️ Word Cloud")
+                    st.pyplot(result['wordcloud_fig'])
+
                 # Topic modeling
                 st.subheader("🧠 Topic Modeling (LDA)")
                 st.text(result['lda_topics'])
