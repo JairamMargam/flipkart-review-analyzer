@@ -9,9 +9,6 @@ spacy==3.7.5
 https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz
 nltk==3.9.1
 scikit-learn==1.6.1
-transformers==4.46.0
-torch==2.5.1
-tf-keras==2.15.0
 gensim==4.3.3
 scipy==1.13.1
 google-generativeai==0.8.2
