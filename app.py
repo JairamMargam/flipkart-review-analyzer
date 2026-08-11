@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 
-from review_analysis import run_full_analysis
+from review_analysis import run_full_analysis, generate_wordcloud
 import os
 
 st.set_page_config(page_title="Flipkart Review Analyzer", layout="wide")
@@ -29,9 +29,21 @@ num_pages = st.slider("🔢 Number of Pages to Scrape", min_value=1, max_value=1
 use_grammar = st.checkbox("📝 Apply Grammar Correction (uses Gemini API, slower)", value=False)
 api_key = st.text_input("🔑 Gemini API Key (required)", type="password")
 
+def get_tinyfish_key():
+    try:
+        if "TINYFISH_API_KEY" in st.secrets:
+            return st.secrets["TINYFISH_API_KEY"]
+    except Exception:
+        pass
+    return os.getenv("TINYFISH_API_KEY", "")
+
+tinyfish_key_input = st.text_input("🐟 TinyFish API Key (required for scraping)", type="password", value=get_tinyfish_key())
+
 if st.button("🚀 Analyze Reviews"):
     if not api_key:
         st.error("Please enter your Gemini API Key.")
+    elif not tinyfish_key_input:
+        st.error("Please enter your TinyFish API Key.")
     elif not product_url:
         st.error("Please enter a Flipkart review URL.")
     else:
@@ -41,7 +53,8 @@ if st.button("🚀 Analyze Reviews"):
                     url=product_url,
                     num_pages=num_pages,
                     use_grammar=use_grammar,
-                    api_key=api_key
+                    api_key=api_key,
+                    tinyfish_api_key=tinyfish_key_input
                 )
 
                 st.success("✅ Analysis Complete!")
@@ -64,9 +77,10 @@ if st.button("🚀 Analyze Reviews"):
                 st.bar_chart(result['sentiment_counts'])
 
                 # Word Cloud
-                if result.get('wordcloud_fig'):
+                wordcloud_fig = generate_wordcloud(result['raw']['description_cleaned'])
+                if wordcloud_fig:
                     st.subheader("☁️ Word Cloud")
-                    st.pyplot(result['wordcloud_fig'])
+                    st.pyplot(wordcloud_fig)
 
                 # Topic modeling
                 st.subheader("🧠 Topic Modeling (LDA)")

@@ -3,11 +3,6 @@ import pandas as pd
 import numpy as np
 import time
 import emoji
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-from bs4 import BeautifulSoup
 from sklearn.feature_extraction.text import CountVectorizer
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from gensim import corpora
@@ -42,78 +37,125 @@ def get_user_api_key(provided_key=None):
         raise ValueError("API Key is required. Please provide it via the UI or environment.")
     return api_key
 
+import re
+import requests
+import json
+
+def parse_markdown_reviews(markdown_text):
+    reviews = []
+    lines = [line.strip() for line in markdown_text.split('\n')]
+
+    i = 0
+    while i < len(lines):
+        if re.match(r'^[1-5]\.0$', lines[i]) and (i + 4) < len(lines) and lines[i+2] == '•':
+            rating = lines[i]
+            title = lines[i+4]
+
+            i += 6
+            description_lines = []
+            name = "Anonymous"
+            location = "N/A"
+            date = "N/A"
+
+            while i < len(lines):
+                if re.match(r'^[1-5]\.0$', lines[i]) and (i + 4) < len(lines) and lines[i+2] == '•':
+                    break
+
+                if lines[i].startswith("Helpful for"):
+                    if len(description_lines) >= 2:
+                        name_line = description_lines[-2]
+                        loc_line = description_lines[-1]
+                        if loc_line.startswith(", "):
+                            location = loc_line[2:]
+                            name = name_line
+                            description_lines = description_lines[:-2]
+                        else:
+                            name = loc_line
+                            description_lines = description_lines[:-1]
+                    elif len(description_lines) >= 1:
+                        name = description_lines[-1]
+                        description_lines = description_lines[:-1]
+
+                    j = i
+                    while j < min(i + 5, len(lines)):
+                        if lines[j].startswith("· "):
+                            date = lines[j][2:]
+                            break
+                        j += 1
+
+                    i = j
+                    break
+
+                if lines[i] != "":
+                    description_lines.append(lines[i])
+                i += 1
+
+            desc_text = " ".join(description_lines)
+
+            desc_text = re.sub(r'^(Review for: )?(Color|Colour).*?GB\s*', '', desc_text, flags=re.IGNORECASE).strip()
+            desc_text = re.sub(r'^• Storage \d+ GB\s*', '', desc_text, flags=re.IGNORECASE).strip()
+            desc_text = re.sub(r'^Review for:.*?(?=Pros|Not bad|I have|It|Excellent|Nice|Nothing|Design|It is|The|\b[A-Z])', '', desc_text, flags=re.IGNORECASE).strip()
+            if desc_text.startswith("Review for:"):
+                desc_text = re.sub(r'^Review for:.*?(?=\s)', '', desc_text).strip()
+
+            desc_text = desc_text.replace("... more", "").replace("...more", "").strip()
+
+            if desc_text:
+                reviews.append({
+                    'name': name,
+                    'rating': rating,
+                    'title': title,
+                    'description': desc_text,
+                    'date': date,
+                    'location': location
+                })
+            continue
+        i += 1
+    return reviews
+
+
 @st.cache_data(show_spinner="Scraping reviews...")
-def scrape_flipkart_reviews(base_url, num_pages=2):
-    options = Options()
-    options.add_argument('--headless=new')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
-
-    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-        'source': '''
-            delete navigator.__proto__.webdriver;
-            window.navigator.chrome = { runtime: {} };
-            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-        '''
-    })
+def scrape_flipkart_reviews(base_url, num_pages=2, tinyfish_api_key=None):
+    if not tinyfish_api_key:
+        raise ValueError("TinyFish API Key is required for scraping.")
 
     all_reviews = []
 
+    urls = []
     for page in range(1, num_pages + 1):
         separator = "&" if "?" in base_url else "?"
         url = f"{base_url}{separator}page={page}"
-        driver.get(url)
-        time.sleep(5)
+        urls.append(url)
 
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight / 2);")
-        time.sleep(2)
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
+    headers = {
+        "X-API-Key": tinyfish_api_key,
+        "Content-Type": "application/json"
+    }
+    api_url = "https://api.fetch.tinyfish.ai"
 
-        try:
-            read_more_buttons = driver.find_elements("xpath", "//span[contains(text(), 'READ MORE')]")
-            for btn in read_more_buttons[:10]:
-                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
-                time.sleep(1)
-                driver.execute_script("arguments[0].click();", btn)
-                time.sleep(0.5)
-        except:
-            pass
+    try:
+        for i in range(0, len(urls), 10):
+            batch_urls = urls[i:i+10]
+            data = {
+                "urls": batch_urls,
+                "format": "markdown"
+            }
 
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-        reviews = soup.find_all('div', class_='ZmyHeo')
+            response = requests.post(api_url, headers=headers, json=data, timeout=60)
+            response.raise_for_status()
 
-        for review in reviews:
-            rating_tag = review.find_previous('div', class_='XQDdHH Ga3i8K')
-            rating = rating_tag.get_text(strip=True) if rating_tag else "N/A"
-            title_tag = review.find_previous('p', class_='z9E0IG')
-            title = title_tag.get_text(strip=True).replace("READ MORE", "").strip() if title_tag else "No Title"
-            description = review.get_text(" ", strip=True).replace("READ MORE", "").strip()
-            name_tag = review.find_next('p', class_='_2NsDsF AwS1CA')
-            name = name_tag.get_text(strip=True) if name_tag else "Anonymous"
-            location_tag = review.find_next('p', class_='MztJPv')
-            location = location_tag.find_all('span')[1].get_text(strip=True) if location_tag and len(location_tag.find_all('span')) > 1 else "N/A"
-            date_tag_candidates = review.find_all_next('p', class_='_2NsDsF')
-            date = next((dt.get_text(strip=True) for dt in date_tag_candidates if dt.get_text(strip=True) != name), "N/A")
+            result = response.json()
+            if 'results' in result:
+                for page in result['results']:
+                    if 'text' in page and page['text']:
+                        reviews = parse_markdown_reviews(page['text'])
+                        all_reviews.extend(reviews)
+    except Exception as e:
+        print(f"Error fetching from TinyFish API: {e}")
 
-            all_reviews.append({
-                'name': name,
-                'rating': rating,
-                'title': title,
-                'description': description,
-                'date': date,
-                'location': location
-            })
-
-    driver.quit()
     df = pd.DataFrame(all_reviews)
-    df = df.drop_duplicates(subset=['description']).reset_index(drop=True)
+    if not df.empty:
+        df = df.drop_duplicates(subset=['description']).reset_index(drop=True)
     return df
 
 def remove_emojis(text):
@@ -199,10 +241,13 @@ def generate_wordcloud(text_series):
     return fig
 
 @st.cache_data(show_spinner="Analyzing data...")
-def run_full_analysis(url=None, num_pages=3, use_grammar=False, api_key=None):
+def run_full_analysis(url=None, num_pages=3, use_grammar=False, api_key=None, tinyfish_api_key=None):
     api_key = get_user_api_key(api_key)
 
-    df = scrape_flipkart_reviews(url, num_pages=num_pages)
+    df = scrape_flipkart_reviews(url, num_pages=num_pages, tinyfish_api_key=tinyfish_api_key)
+
+    if df.empty:
+        raise ValueError("No reviews could be scraped. The page format may have changed or the URL is invalid.")
     df['description'] = df['description'].astype(str).str.strip()
 
     if use_grammar:
@@ -222,13 +267,11 @@ def run_full_analysis(url=None, num_pages=3, use_grammar=False, api_key=None):
     bigram_str = '\n'.join([f"{phrase} ({count})" for phrase, count in bigrams])
     summary = explain_insights(bigram_str, lda_summary, api_key)
     sentiment_counts = df['sentiment'].value_counts()
-    wordcloud_fig = generate_wordcloud(df['description_cleaned'])
 
     return {
         'summary': summary,
         'sentiment_counts': sentiment_counts,
         'raw': df,
         'lda_topics': lda_summary,
-        'bigrams_text': bigram_str,
-        'wordcloud_fig': wordcloud_fig
+        'bigrams_text': bigram_str
     }
